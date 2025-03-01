@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+import { ethers } from "ethers";
+import { Command } from "commander";
+
+const program = new Command();
+
+program
+  .requiredOption("-k, --private-key <key>", "Private key of the signer")
+  .requiredOption("-c, --contract <address>", "Contract address (verifying contract)")
+  .requiredOption("-i, --chain-id <number>", "Chain ID", parseInt)
+  .requiredOption("-a, --address <address>", "Requester address")
+  .requiredOption("-R, --resource <resourceId>", "Resource ID (32-byte hex string)");
+
+program.parse(process.argv);
+
+async function main() {
+  const opts = program.opts();
+
+  // Create an offline wallet using the provided private key (no provider is attached)
+  const wallet = new ethers.Wallet(opts.privateKey);
+
+  // Define the EIP-712 domain parameters (must match your Solidity contract)
+  const domain = {
+    name: "AuthorizationContract",
+    version: "1",
+    chainId: opts.chainId,
+    verifyingContract: opts.contract,
+  };
+
+  // Define the typed data structure for signing
+  const types = {
+    AccessApproval: [
+      { name: "requester", type: "address" },
+      { name: "resourceId", type: "bytes32" },
+    ],
+  };
+
+  // Construct the message from the CLI parameters
+  const message = {
+    requester: opts.address,
+    resourceId: opts.resource, // This must be a valid 32-byte hex string
+  };
+
+  // Sign the typed data offline
+  const signature = await wallet.signTypedData(domain, types, message);
+  console.log("EIP712 Signature:", signature);
+}
+
+main().catch((error) => {
+  console.error("Error:", error);
+  process.exit(1);
+});
